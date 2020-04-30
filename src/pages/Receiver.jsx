@@ -1,11 +1,8 @@
 import React, { useRef, useEffect, useState, useContext } from "react";
 import {
-  Navbar,
   Container,
-  Alert,
   Row,
   Col,
-  Button,
   Media,
   Badge,
   Image,
@@ -15,8 +12,13 @@ import Peer from "simple-peer";
 import io from "socket.io-client";
 import UserContext from "../contexts/UserContext";
 import { useHistory } from "react-router";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPhoneAlt } from "@fortawesome/free-solid-svg-icons";
+import NavBar from "../components/Navbar";
+import UserCard from "../components/UserCard";
+
+const callStates = {
+  RECEIVING_CALL: "RECEIVING_CALL",
+  CALL_ACCEPTED: "CALL_ACCEPTED",
+};
 
 const Receiver = () => {
   const user = useContext(UserContext);
@@ -27,6 +29,7 @@ const Receiver = () => {
   const [signal, setSignal] = useState(null);
   const [stream, setStream] = useState(null);
   const [caller, setCaller] = useState(null);
+  const [callState, setCallState] = useState(null);
 
   const history = useHistory();
   const player = useRef(null);
@@ -76,6 +79,7 @@ const Receiver = () => {
 
     socket.current.on("get-signal", (res) => {
       console.log("Received signal: ", res.from);
+      setCallState(callStates.RECEIVING_CALL);
       setSignal(res.signal);
       setCaller(res.from);
     });
@@ -105,6 +109,7 @@ const Receiver = () => {
     });
 
     peer.on("signal", (data) => {
+      setCallState(callStates.CALL_ACCEPTED);
       socket.current.emit("acknowledge-call", {
         signal: data,
         from: {
@@ -126,83 +131,44 @@ const Receiver = () => {
 
   return (
     <>
-      <Navbar bg="dark" expand="lg">
-        <Navbar.Brand className="text-white">Talky: Receiver</Navbar.Brand>
-      </Navbar>
+      <NavBar />
       <Container className="my-5">
-        <Alert variant="info">
+        <Card body className="mb-3">
           <Media>
             <Image
-              rounded
+              roundedCircle
               src={`https://api.adorable.io/avatars/285/${user.name}.png`}
-              className="mr-3"
+              className="mr-3 bg-light emboss"
               width={70}
               height={70}
             />
             <Media.Body>
-              <h6 className="mb-0">
-                {user.name}
-                <Badge variant="success" className="ml-2">
-                  {user.type}
-                </Badge>
-              </h6>
-              <p className="text-muted mb-0">
-                <small>{userID}</small>
-              </p>
-              <p className="text-muted mb-0">
-                <small>{socketID}</small>
-              </p>
+              <h6 className="mb-0">{user.name}</h6>
+              <Badge variant="success">{user.type}</Badge>
             </Media.Body>
           </Media>
-        </Alert>
+        </Card>
 
-        <Row>
+        <Row className="my-5" noGutters>
           <Col sm={12} md={6} lg={6}>
-            <video ref={player} autoPlay className="img-fluid" />
+            <video ref={player} autoPlay controls muted className="img-fluid" />
           </Col>
           <Col sm={12} md={6} lg={6}>
-            <video ref={peerPlayer} autoPlay className="img-fluid" />
+            <video ref={peerPlayer} autoPlay controls className="img-fluid" />
           </Col>
         </Row>
 
         {users.map(({ id, name, type, socketID: sID }) => {
           if (id === userID && sID === socketID) return null;
           return (
-            <Card body key={id}>
-              <Media>
-                <Image
-                  rounded
-                  src={`https://api.adorable.io/avatars/285/${name}.png`}
-                  className="mr-3"
-                  width={70}
-                  height={70}
-                />
-                <Media.Body>
-                  <h6 className="mb-0">
-                    {name}
-                    <Badge variant="success" className="ml-2">
-                      {type}
-                    </Badge>
-                  </h6>
-                  <p className="text-muted mb-0">
-                    <small>{userID}</small>
-                  </p>
-                  <p className="text-muted mb-0">
-                    <small>{sID}</small>
-                  </p>
-                </Media.Body>
-
-                {caller && caller.id === id && (
-                  <Button
-                    variant="success"
-                    onClick={() => onAccept({ id, name, type, socketID: sID })}
-                  >
-                    <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
-                    Accept
-                  </Button>
-                )}
-              </Media>
-            </Card>
+            <UserCard
+              key={id}
+              name={name}
+              type={type}
+              showButton={caller && caller.id === id}
+              buttonText="Accept"
+              onClick={() => onAccept({ id, name, type, socketID: sID })}
+            />
           );
         })}
       </Container>

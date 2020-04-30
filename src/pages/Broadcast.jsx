@@ -1,11 +1,8 @@
 import React, { useEffect, useState, useRef, useContext } from "react";
 import {
   Container,
-  Navbar,
   Row,
   Col,
-  Button,
-  Alert,
   Image,
   Media,
   Badge,
@@ -15,8 +12,13 @@ import Peer from "simple-peer";
 import io from "socket.io-client";
 import UserContext from "../contexts/UserContext";
 import { useHistory } from "react-router";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPhoneAlt } from "@fortawesome/free-solid-svg-icons";
+import NavBar from "../components/Navbar";
+import UserCard from "../components/UserCard";
+
+const callStates = {
+  CALLING: "CALLING",
+  CALL_ACCEPTED: "CALL_ACCEPTED",
+};
 
 const Broadcast = () => {
   const user = useContext(UserContext);
@@ -24,6 +26,7 @@ const Broadcast = () => {
   const [stream, setStream] = useState(null);
   const [userID, setUserID] = useState(null);
   const [socketID, setSocketID] = useState(null);
+  const [callState, setCallState] = useState(null);
 
   const history = useHistory();
   const player = useRef(null);
@@ -79,6 +82,7 @@ const Broadcast = () => {
   }, []);
 
   const onCall = (callUser) => {
+    setCallState(callStates.CALLING);
     const peer = new Peer({
       initiator: true,
       trickle: false,
@@ -121,81 +125,54 @@ const Broadcast = () => {
 
   return (
     <>
-      <Navbar bg="dark" expand="lg">
-        <Navbar.Brand className="text-white">Talky: Broadcaster</Navbar.Brand>
-      </Navbar>
+      <NavBar />
       <Container className="my-5">
-        <Alert variant="info">
+        <Card body className="mb-3">
           <Media>
             <Image
-              rounded
+              roundedCircle
               src={`https://api.adorable.io/avatars/285/${user.name}.png`}
-              className="mr-3"
+              className="mr-3 bg-light emboss"
               width={70}
               height={70}
             />
-            <Media.Body>
-              <h6 className="mb-0">
-                {user.name}
-                <Badge variant="primary" className="ml-2">
-                  {user.type}
-                </Badge>
-              </h6>
-              <p className="text-muted mb-0">
-                <small>{userID}</small>
-              </p>
-              <p className="text-muted mb-0">
-                <small>{socketID}</small>
-              </p>
+            <Media.Body className="align-self-center">
+              <h6 className="mb-0">{user.name}</h6>
+              <Badge variant="primary">{user.type}</Badge>
             </Media.Body>
           </Media>
-        </Alert>
+        </Card>
 
-        <Row>
+        <Row className="my-5" noGutters>
           <Col sm={12} md={6} lg={6}>
-            <video ref={player} autoPlay className="img-fluid" />
+            <video
+              ref={player}
+              autoPlay
+              controls
+              muted
+              className="img-fluid w-100"
+            />
           </Col>
           <Col sm={12} md={6} lg={6}>
-            <video ref={peerPlayer} autoPlay className="img-fluid" />
+            <video
+              ref={peerPlayer}
+              autoPlay
+              controls
+              className="img-fluid w-100"
+            />
           </Col>
         </Row>
 
         {users.map(({ id, name, type, socketID: sID }) => {
           if (id === userID && sID === socketID) return null;
           return (
-            <Card body key={id}>
-              <Media>
-                <Image
-                  rounded
-                  src={`https://api.adorable.io/avatars/285/${name}.png`}
-                  className="mr-3"
-                  width={70}
-                  height={70}
-                />
-                <Media.Body>
-                  <h6 className="mb-0">
-                    {name}
-                    <Badge variant="success" className="ml-2">
-                      {type}
-                    </Badge>
-                  </h6>
-                  <p className="text-muted mb-0">
-                    <small>{userID}</small>
-                  </p>
-                  <p className="text-muted mb-0">
-                    <small>{sID}</small>
-                  </p>
-                </Media.Body>
-
-                <Button
-                  variant="primary"
-                  onClick={() => onCall({ id, name, type, socketID: sID })}
-                >
-                  <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
-                  Call
-                </Button>
-              </Media>
-            </Card>
+            <UserCard
+              key={id}
+              name={name}
+              type={type}
+              buttonText="Call"
+              onClick={() => onCall({ id, name, type, socketID: sID })}
+            />
           );
         })}
       </Container>

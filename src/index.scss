@@ -1,1 +1,36 @@
+@import url("https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;1,500&display=swap");
+
+$theme-colors: (
+  "primary": #3d5af1,
+  "secondary": #22d1ee,
+  "dark": #0e153a,
+  "light": #e2f3f5,
+);
+
 @import "../node_modules/bootstrap/scss/bootstrap.scss";
+
+body {
+  font-family: "Ubuntu", sans-serif;
+  background: #eeeeee;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #0e153a;
+}
+
+.card {
+  border-radius: 1rem;
+  background: #eeeeee;
+  box-shadow: 10px 10px 20px #cacaca, -10px -10px 20px #ffffff;
+  border: 0;
+}
+
+.emboss {
+  background: #eeeeee;
+  box-shadow: 5px 5px 10px #cacaca, -5px -5px 10px #ffffff;
+}
