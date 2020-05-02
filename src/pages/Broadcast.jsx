@@ -8,6 +8,7 @@ import {
   Badge,
   Card,
   Button,
+  Form,
 } from "react-bootstrap";
 import classnames from "classnames";
 import Peer from "simple-peer";
@@ -23,6 +24,13 @@ import Draggable from "react-draggable";
 const callStates = {
   CALLING: "CALLING",
   CALL_ACCEPTED: "CALL_ACCEPTED",
+};
+
+const videoConstraints = {
+  fullhd: { width: { exact: 1920 }, height: { exact: 1080 } },
+  hd: { width: { exact: 1280 }, height: { exact: 720 } },
+  vga: { width: { exact: 640 }, height: { exact: 480 } },
+  qvga: { width: { exact: 320 }, height: { exact: 240 } },
 };
 
 const Broadcast = () => {
@@ -42,7 +50,7 @@ const Broadcast = () => {
     console.log(`Logged in as ${user.name}, ${!user.name.length}`);
     if (!user.name.length) {
       console.log("in clear");
-      return history.push("/");
+      // return history.push("/");
     }
 
     console.log("Connecting to Socket at:", process.env.REACT_APP_SOCKET_URL);
@@ -56,7 +64,7 @@ const Broadcast = () => {
     (async () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: true,
+        video: videoConstraints.hd,
       });
 
       setStream(stream);
@@ -138,76 +146,99 @@ const Broadcast = () => {
     setActiveDrags(activeDrags - 1);
   };
 
+  const onVideoQualityChange = async (e) => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: videoConstraints[e.target.value],
+    });
+
+    setStream(stream);
+    if (player.current) {
+      player.current.srcObject = stream;
+    }
+  };
+
   return (
     <>
       <NavBar />
       <Container className="my-5">
-        <Card body className="mb-3">
-          <Media>
-            <Image
-              roundedCircle
-              src={`https://api.adorable.io/avatars/285/${user.name}.png`}
-              className="mr-3 bg-light emboss"
-              width={70}
-              height={70}
-            />
-            <Media.Body className="align-self-center">
-              <h6 className="mb-0">{user.name}</h6>
-              <Badge variant="primary">{user.type}</Badge>
-            </Media.Body>
-          </Media>
-        </Card>
-
-        <Row className="my-5" noGutters>
-          <Draggable
-            onStart={onStart}
-            onStop={onStop}
-            disabled={callState !== callStates.CALL_ACCEPTED}
-          >
-            <Col
-              sm={12}
-              className={classnames(
-                callState === callStates.CALL_ACCEPTED ? "video-self" : null
-              )}
-            >
-              <video ref={player} autoPlay muted className="img-fluid" />
-            </Col>
-          </Draggable>
-          <Col
-            sm={12}
-            className={classnames(
-              callState === callStates.CALL_ACCEPTED ? "video-peer" : "d-none"
-            )}
-          >
-            <video ref={peerPlayer} autoPlay className="img-fluid w-100" />
+        <Row>
+          <Col sm={12} className="text-right">
+            <Form.Group className="d-flex justify-content-end">
+              <Form.Control
+                as="select"
+                custom
+                className="select-quality"
+                onChange={onVideoQualityChange}
+              >
+                <option value="hd">HD</option>
+                <option value="vga">VGA</option>
+                <option value="qvga">QVGA</option>
+              </Form.Control>
+            </Form.Group>
           </Col>
         </Row>
 
-        {users.map(({ id, name, type, socketID: sID }) => {
-          if (id === userID && sID === socketID) return null;
-          return (
-            <UserCard
-              key={id}
-              name={name}
-              type={type}
-              buttonText={"Call"}
-              onClick={() => onCall({ id, name, type, socketID: sID })}
+        <Row>
+          <Col sm={12} md={6} lg={4}>
+            <UserCard name={user.name} type={user.type} />
+            {users.map(({ id, name, type, socketID: sID }) => {
+              if (id === userID && sID === socketID) return null;
+              return (
+                <UserCard
+                  key={id}
+                  name={name}
+                  type={type}
+                  buttonText={"Call"}
+                  onClick={() => onCall({ id, name, type, socketID: sID })}
+                >
+                  <Button
+                    size="sm"
+                    variant={
+                      callState === callStates.CALL_ACCEPTED
+                        ? "success"
+                        : "primary"
+                    }
+                    disabled={callState !== null}
+                    onClick={() => onCall({ id, name, type, socketID: sID })}
+                  >
+                    <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
+                    {callState === callStates.CALLING && "CALLING"}
+                    {callState === callStates.CALL_ACCEPTED && "ACCEPTED"}
+                    {callState === null && "Call"}
+                  </Button>
+                </UserCard>
+              );
+            })}
+          </Col>
+          <Col sm={12} md={6} lg={8}>
+            <Draggable
+              onStart={onStart}
+              onStop={onStop}
+              disabled={callState !== callStates.CALL_ACCEPTED}
             >
-              <Button
-                variant={
-                  callState === callStates.CALL_ACCEPTED ? "success" : "primary"
-                }
-                disabled={callState !== null}
-                onClick={() => onCall({ id, name, type, socketID: sID })}
+              <div
+                className={classnames(
+                  callState === callStates.CALL_ACCEPTED
+                    ? "video-self"
+                    : "video-self-idle"
+                )}
               >
-                <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
-                {callState === callStates.CALLING && "CALLING"}
-                {callState === callStates.CALL_ACCEPTED && "ACCEPTED"}
-                {callState === null && "Call"}
-              </Button>
-            </UserCard>
-          );
-        })}
+                <video ref={player} autoPlay muted className="img-fluid" />
+              </div>
+            </Draggable>
+          </Col>
+        </Row>
+
+        {/* PEER Video */}
+        <div
+          sm={12}
+          className={classnames(
+            callState === callStates.CALL_ACCEPTED ? "video-peer" : "d-none"
+          )}
+        >
+          <video ref={peerPlayer} autoPlay className="img-fluid w-100" />
+        </div>
       </Container>
     </>
   );
