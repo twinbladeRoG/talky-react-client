@@ -7,13 +7,18 @@ import {
   Media,
   Badge,
   Card,
+  Button,
 } from "react-bootstrap";
+import classnames from "classnames";
 import Peer from "simple-peer";
 import io from "socket.io-client";
 import UserContext from "../contexts/UserContext";
 import { useHistory } from "react-router";
 import NavBar from "../components/Navbar";
 import UserCard from "../components/UserCard";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPhoneAlt } from "@fortawesome/free-solid-svg-icons";
+import Draggable from "react-draggable";
 
 const callStates = {
   CALLING: "CALLING",
@@ -82,6 +87,7 @@ const Broadcast = () => {
   }, []);
 
   const onCall = (callUser) => {
+    console.log("click");
     setCallState(callStates.CALLING);
     const peer = new Peer({
       initiator: true,
@@ -118,9 +124,18 @@ const Broadcast = () => {
     });
 
     socket.current.on("call-acknowledged", (res) => {
+      setCallState(callStates.CALL_ACCEPTED);
       console.log("Call Acknowledged from: ", res.from.name, res.from.socketID);
       peer.signal(res.signal);
     });
+  };
+
+  const [activeDrags, setActiveDrags] = useState(0);
+  const onStart = () => {
+    setActiveDrags(activeDrags + 1);
+  };
+  const onStop = () => {
+    setActiveDrags(activeDrags - 1);
   };
 
   return (
@@ -144,22 +159,27 @@ const Broadcast = () => {
         </Card>
 
         <Row className="my-5" noGutters>
-          <Col sm={12} md={6} lg={6}>
-            <video
-              ref={player}
-              autoPlay
-              controls
-              muted
-              className="img-fluid w-100"
-            />
-          </Col>
-          <Col sm={12} md={6} lg={6}>
-            <video
-              ref={peerPlayer}
-              autoPlay
-              controls
-              className="img-fluid w-100"
-            />
+          <Draggable
+            onStart={onStart}
+            onStop={onStop}
+            disabled={callState !== callStates.CALL_ACCEPTED}
+          >
+            <Col
+              sm={12}
+              className={classnames(
+                callState === callStates.CALL_ACCEPTED ? "video-self" : null
+              )}
+            >
+              <video ref={player} autoPlay muted className="img-fluid" />
+            </Col>
+          </Draggable>
+          <Col
+            sm={12}
+            className={classnames(
+              callState === callStates.CALL_ACCEPTED ? "video-peer" : "d-none"
+            )}
+          >
+            <video ref={peerPlayer} autoPlay className="img-fluid w-100" />
           </Col>
         </Row>
 
@@ -170,9 +190,22 @@ const Broadcast = () => {
               key={id}
               name={name}
               type={type}
-              buttonText="Call"
+              buttonText={"Call"}
               onClick={() => onCall({ id, name, type, socketID: sID })}
-            />
+            >
+              <Button
+                variant={
+                  callState === callStates.CALL_ACCEPTED ? "success" : "primary"
+                }
+                disabled={callState !== null}
+                onClick={() => onCall({ id, name, type, socketID: sID })}
+              >
+                <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
+                {callState === callStates.CALLING && "CALLING"}
+                {callState === callStates.CALL_ACCEPTED && "ACCEPTED"}
+                {callState === null && "Call"}
+              </Button>
+            </UserCard>
           );
         })}
       </Container>

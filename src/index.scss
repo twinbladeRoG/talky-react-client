@@ -2,7 +2,7 @@
 
 $theme-colors: (
   "primary": #3d5af1,
-  "secondary": #22d1ee,
+  "info": #22d1ee,
   "dark": #0e153a,
   "light": #e2f3f5,
 );
@@ -33,4 +33,39 @@ h6 {
 .emboss {
   background: #eeeeee;
   box-shadow: 5px 5px 10px #cacaca, -5px -5px 10px #ffffff;
+}
+
+.input-group-text,
+.form-control,
+.btn {
+  border: 0;
+}
+
+.video-self {
+  width: 100%;
+  position: fixed;
+  z-index: 2;
+  bottom: 1rem;
+  left: 1rem;
+  max-width: 30vw;
+  border-radius: 1rem;
+  background-color: $primary;
+  overflow: hidden;
+  video {
+    transform: scale(1.2);
+  }
+}
+.video-peer {
+  position: fixed;
+  z-index: 1;
+  width: 100%;
+  height: 100vh;
+  top: 0%;
+  left: 0;
+  background-color: black;
+  video {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
 }

@@ -7,13 +7,18 @@ import {
   Badge,
   Image,
   Card,
+  Button,
 } from "react-bootstrap";
 import Peer from "simple-peer";
 import io from "socket.io-client";
+import classnames from "classnames";
 import UserContext from "../contexts/UserContext";
 import { useHistory } from "react-router";
 import NavBar from "../components/Navbar";
 import UserCard from "../components/UserCard";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPhoneAlt } from "@fortawesome/free-solid-svg-icons";
+import Draggable from "react-draggable";
 
 const callStates = {
   RECEIVING_CALL: "RECEIVING_CALL",
@@ -79,18 +84,21 @@ const Receiver = () => {
 
     socket.current.on("get-signal", (res) => {
       console.log("Received signal: ", res.from);
-      setCallState(callStates.RECEIVING_CALL);
+      console.log(callState);
+      // if (callState === null) setCallState(callStates.RECEIVING_CALL);
       setSignal(res.signal);
       setCaller(res.from);
     });
 
     return () => {
+      console.log("disconnect");
       socket.current.disconnect();
     };
     // eslint-disable-next-line
   }, []);
 
   const onAccept = (caller) => {
+    setCallState((c) => callStates.CALL_ACCEPTED);
     const peer = new Peer({
       initiator: false,
       trickle: false,
@@ -109,7 +117,6 @@ const Receiver = () => {
     });
 
     peer.on("signal", (data) => {
-      setCallState(callStates.CALL_ACCEPTED);
       socket.current.emit("acknowledge-call", {
         signal: data,
         from: {
@@ -127,6 +134,14 @@ const Receiver = () => {
     });
 
     peer.signal(signal);
+  };
+
+  const [activeDrags, setActiveDrags] = useState(0);
+  const onStart = () => {
+    setActiveDrags(activeDrags + 1);
+  };
+  const onStop = () => {
+    setActiveDrags(activeDrags - 1);
   };
 
   return (
@@ -150,25 +165,51 @@ const Receiver = () => {
         </Card>
 
         <Row className="my-5" noGutters>
-          <Col sm={12} md={6} lg={6}>
-            <video ref={player} autoPlay controls muted className="img-fluid" />
-          </Col>
-          <Col sm={12} md={6} lg={6}>
-            <video ref={peerPlayer} autoPlay controls className="img-fluid" />
+          <Draggable
+            onStart={onStart}
+            onStop={onStop}
+            disabled={callState !== callStates.CALL_ACCEPTED}
+          >
+            <Col
+              sm={12}
+              className={classnames(
+                callState === callStates.CALL_ACCEPTED ? "video-self" : null
+              )}
+            >
+              <video ref={player} autoPlay muted className="img-fluid" />
+            </Col>
+          </Draggable>
+          <Col
+            sm={12}
+            className={classnames(
+              callState === callStates.CALL_ACCEPTED ? "video-peer" : "d-none"
+            )}
+          >
+            <video ref={peerPlayer} autoPlay className="img-fluid w-100" />
           </Col>
         </Row>
 
         {users.map(({ id, name, type, socketID: sID }) => {
           if (id === userID && sID === socketID) return null;
           return (
-            <UserCard
-              key={id}
-              name={name}
-              type={type}
-              showButton={caller && caller.id === id}
-              buttonText="Accept"
-              onClick={() => onAccept({ id, name, type, socketID: sID })}
-            />
+            <UserCard key={id} name={name} type={type}>
+              {caller && caller.id === id && (
+                <Button
+                  variant={
+                    callState === callStates.CALL_ACCEPTED
+                      ? "success"
+                      : "primary"
+                  }
+                  disabled={callState === callStates.CALL_ACCEPTED}
+                  onClick={() => onAccept({ id, name, type, socketID: sID })}
+                >
+                  <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
+                  {callState === callStates.CALL_ACCEPTED
+                    ? "ACCEPTED"
+                    : "ANSWER"}
+                </Button>
+              )}
+            </UserCard>
           );
         })}
       </Container>

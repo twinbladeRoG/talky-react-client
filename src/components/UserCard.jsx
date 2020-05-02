@@ -1,9 +1,7 @@
 import React from "react";
-import { Card, Media, Image, Button, Badge } from "react-bootstrap";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPhoneAlt } from "@fortawesome/free-solid-svg-icons";
+import { Card, Media, Image, Badge } from "react-bootstrap";
 
-const UserCard = ({ name, type, onClick, buttonText, showButton }) => {
+const UserCard = ({ name, type, children }) => {
   return (
     <Card body className="mb-3">
       <Media className="align-items-center">
@@ -19,17 +17,12 @@ const UserCard = ({ name, type, onClick, buttonText, showButton }) => {
           <Badge variant="primary">{type}</Badge>
         </Media.Body>
 
-        {showButton && (
-          <Button variant="success" onClick={onClick}>
-            <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
-            {buttonText}
-          </Button>
-        )}
+        {children}
       </Media>
     </Card>
   );
 };
-UserCard.defaultProps = {
-  showButton: true,
-};
+
+UserCard.defaultProps = {};
+
 export default UserCard;
