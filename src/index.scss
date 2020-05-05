@@ -82,10 +82,20 @@ h6 {
   height: 100vh;
   top: 0%;
   left: 0;
-  background-color: black;
+  background-color: rgba($color: #000, $alpha: 1);
   video {
     position: absolute;
+    width: 100%;
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateY(-50%) scale(-1.2, 1.2);
   }
+}
+
+.btn-call-end {
+  position: fixed;
+  z-index: 5;
+  bottom: 1rem;
+  right: 1rem;
+  width: 50px;
+  height: 50px;
 }

@@ -1,15 +1,5 @@
 import React, { useEffect, useState, useRef, useContext } from "react";
-import {
-  Container,
-  Row,
-  Col,
-  Image,
-  Media,
-  Badge,
-  Card,
-  Button,
-  Form,
-} from "react-bootstrap";
+import { Container, Row, Col, Button, Form } from "react-bootstrap";
 import classnames from "classnames";
 import Peer from "simple-peer";
 import io from "socket.io-client";
@@ -18,13 +8,8 @@ import { useHistory } from "react-router";
 import NavBar from "../components/Navbar";
 import UserCard from "../components/UserCard";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPhoneAlt } from "@fortawesome/free-solid-svg-icons";
+import { faPhoneAlt, faPhoneSlash } from "@fortawesome/free-solid-svg-icons";
 import Draggable from "react-draggable";
-
-const callStates = {
-  CALLING: "CALLING",
-  CALL_ACCEPTED: "CALL_ACCEPTED",
-};
 
 const videoConstraints = {
   fullhd: { width: { exact: 1920 }, height: { exact: 1080 } },
@@ -33,27 +18,33 @@ const videoConstraints = {
   qvga: { width: { exact: 320 }, height: { exact: 240 } },
 };
 
+const CallStates = {
+  CALLING: "CALLING",
+  CALL_ACKNOWLEDGED: "CALL_ACKNOWLEDGED",
+  CALL_ACCEPTED: "CALL_ACCEPTED",
+};
+
 const Broadcast = () => {
   const user = useContext(UserContext);
   const [users, setUsers] = useState([]);
   const [stream, setStream] = useState(null);
   const [userID, setUserID] = useState(null);
   const [socketID, setSocketID] = useState(null);
+  const [callerSignal, setCallerSignal] = useState(null);
+  const [caller, setCaller] = useState(null);
   const [callState, setCallState] = useState(null);
 
   const history = useHistory();
   const player = useRef(null);
   const peerPlayer = useRef(null);
+  const peerUser = useRef(null);
   let socket = useRef(null);
 
   useEffect(() => {
-    console.log(`Logged in as ${user.name}, ${!user.name.length}`);
     if (!user.name.length) {
-      console.log("in clear");
-      // return history.push("/");
+      return history.push("/");
     }
 
-    console.log("Connecting to Socket at:", process.env.REACT_APP_SOCKET_URL);
     socket.current = io(process.env.REACT_APP_SOCKET_URL, {
       query: {
         name: user.name,
@@ -74,8 +65,6 @@ const Broadcast = () => {
     })();
 
     socket.current.on("connected", ({ id, socketID }) => {
-      console.log("User ID", id);
-      console.log("Socket ID", socketID);
       setUserID(id);
       setSocketID(socketID);
       user.setUserID(id);
@@ -83,20 +72,23 @@ const Broadcast = () => {
     });
 
     socket.current.on("users", (res) => {
-      console.log(res);
       setUsers(res);
     });
 
-    return () => {
-      console.log("disconnect");
-      socket.current.disconnect();
-    };
+    socket.current.on("get-signal", (res) => {
+      console.log("Received signal: ", res.from);
+      setCallerSignal(res.signal);
+      setCaller(res.from);
+      console.log("Call State on Get-Signal: ", callState);
+    });
+
+    return () => socket.current.disconnect();
     // eslint-disable-next-line
   }, []);
 
+  useEffect(() => console.log(callState), [callState]);
+
   const onCall = (callUser) => {
-    console.log("click");
-    setCallState(callStates.CALLING);
     const peer = new Peer({
       initiator: true,
       trickle: false,
@@ -114,8 +106,59 @@ const Broadcast = () => {
       },
     });
 
+    peerUser.current = peer;
+    setCallState(CallStates.CALLING);
+
     peer.on("signal", (data) => {
       socket.current.emit("send-signal", {
+        signal: data,
+        from: {
+          id: userID,
+          name: user.name,
+          type: user.type,
+          socketID: socketID,
+        },
+        to: callUser,
+      });
+    });
+
+    peer.on("stream", (stream) => {
+      if (peerPlayer.current) peerPlayer.current.srcObject = stream;
+    });
+
+    peer.on("close", () => onEnd());
+
+    socket.current.on("call-acknowledged", (res) => {
+      console.log("Call Acknowledged from: ", res.from.name, res.from.socketID);
+      setCallState(CallStates.CALL_ACKNOWLEDGED);
+      peer.signal(res.signal);
+    });
+  };
+
+  const onAccept = (callUser) => {
+    const peer = new Peer({
+      initiator: false,
+      trickle: false,
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:global.stun.twilio.com:3478?transport=udp" },
+          {
+            url: "turn:numb.viagenie.ca",
+            username: process.env.REACT_APP_TURN_SERVER_USERNAME,
+            credential: process.env.REACT_APP_TURN_SERVER_CREDENTIAL,
+          },
+        ],
+      },
+      stream: stream,
+    });
+
+    peerUser.current = peer;
+    setCallState(CallStates.CALL_ACCEPTED);
+
+    peer.on("signal", (data) => {
+      console.log("Got PEER signal on Answer");
+      socket.current.emit("acknowledge-call", {
         signal: data,
         from: {
           id: userID,
@@ -131,11 +174,9 @@ const Broadcast = () => {
       peerPlayer.current.srcObject = stream;
     });
 
-    socket.current.on("call-acknowledged", (res) => {
-      setCallState(callStates.CALL_ACCEPTED);
-      console.log("Call Acknowledged from: ", res.from.name, res.from.socketID);
-      peer.signal(res.signal);
-    });
+    peer.on("close", () => onEnd());
+
+    peer.signal(callerSignal);
   };
 
   const [activeDrags, setActiveDrags] = useState(0);
@@ -156,6 +197,14 @@ const Broadcast = () => {
     if (player.current) {
       player.current.srcObject = stream;
     }
+  };
+
+  const onEnd = () => {
+    console.log("End Call");
+    stream.getTracks().forEach((track) => track.stop());
+    peerUser.current.destroy();
+    socket.current.disconnect();
+    history.push("/");
   };
 
   return (
@@ -181,32 +230,39 @@ const Broadcast = () => {
 
         <Row>
           <Col sm={12} md={6} lg={4}>
-            <UserCard name={user.name} type={user.type} />
+            <UserCard name={user.name} type={user.type}></UserCard>
             {users.map(({ id, name, type, socketID: sID }) => {
               if (id === userID && sID === socketID) return null;
               return (
-                <UserCard
-                  key={id}
-                  name={name}
-                  type={type}
-                  buttonText={"Call"}
-                  onClick={() => onCall({ id, name, type, socketID: sID })}
-                >
-                  <Button
-                    size="sm"
-                    variant={
-                      callState === callStates.CALL_ACCEPTED
-                        ? "success"
-                        : "primary"
-                    }
-                    disabled={callState !== null}
-                    onClick={() => onCall({ id, name, type, socketID: sID })}
-                  >
-                    <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
-                    {callState === callStates.CALLING && "CALLING"}
-                    {callState === callStates.CALL_ACCEPTED && "ACCEPTED"}
-                    {callState === null && "Call"}
-                  </Button>
+                <UserCard key={id} name={name} type={type}>
+                  {!caller && (
+                    <Button
+                      size="sm"
+                      disabled={callState !== null}
+                      variant={callState === null ? "primary" : "success"}
+                      onClick={() => onCall({ id, name, type, socketID: sID })}
+                    >
+                      <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
+                      {callState === null && "Call"}
+                      {callState === CallStates.CALLING && "Calling"}
+                      {callState === CallStates.CALL_ACKNOWLEDGED && "ACCEPTED"}
+                    </Button>
+                  )}
+                  {caller && caller.id === id && (
+                    <Button
+                      size="sm"
+                      disabled={callState === CallStates.CALL_ACCEPTED}
+                      variant={"success"}
+                      onClick={() =>
+                        onAccept({ id, name, type, socketID: sID })
+                      }
+                    >
+                      <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
+                      {callState === CallStates.CALL_ACCEPTED
+                        ? "ACCEPTED"
+                        : "ANSWER"}
+                    </Button>
+                  )}
                 </UserCard>
               );
             })}
@@ -215,18 +271,35 @@ const Broadcast = () => {
             <Draggable
               onStart={onStart}
               onStop={onStop}
-              disabled={callState !== callStates.CALL_ACCEPTED}
+              disabled={callState === null || callState === CallStates.CALLING}
             >
               <div
                 className={classnames(
-                  callState === callStates.CALL_ACCEPTED
-                    ? "video-self"
-                    : "video-self-idle"
+                  callState === null || callState === CallStates.CALLING
+                    ? "video-self-idle"
+                    : "video-self"
                 )}
               >
-                <video ref={player} autoPlay muted className="img-fluid" />
+                <video
+                  ref={player}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="img-fluid"
+                />
               </div>
             </Draggable>
+
+            {(callState === CallStates.CALL_ACCEPTED ||
+              callState === CallStates.CALL_ACKNOWLEDGED) && (
+              <Button
+                variant="danger"
+                className={classnames("rounded-circle btn-call-end shadow")}
+                onClick={onEnd}
+              >
+                <FontAwesomeIcon icon={faPhoneSlash} color={"#fff"} />
+              </Button>
+            )}
           </Col>
         </Row>
 
@@ -234,10 +307,18 @@ const Broadcast = () => {
         <div
           sm={12}
           className={classnames(
-            callState === callStates.CALL_ACCEPTED ? "video-peer" : "d-none"
+            callState === CallStates.CALL_ACCEPTED ||
+              callState === CallStates.CALL_ACKNOWLEDGED
+              ? "video-peer"
+              : null
           )}
         >
-          <video ref={peerPlayer} autoPlay className="img-fluid w-100" />
+          <video
+            ref={peerPlayer}
+            autoPlay
+            playsInline
+            className="img-fluid w-100"
+          />
         </div>
       </Container>
     </>
