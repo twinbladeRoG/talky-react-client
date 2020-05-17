@@ -9,6 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPhoneAlt, faPhoneSlash } from '@fortawesome/free-solid-svg-icons';
 import Draggable from 'react-draggable';
 import { connect } from 'react-redux';
+import { toast } from 'react-toastify';
 import UserCard from '../components/UserCard';
 import NavBar from '../components/Navbar';
 import { socketConnected } from '../redux/actions/userActions';
@@ -26,7 +27,7 @@ const CallStates = {
   CALL_ACCEPTED: 'CALL_ACCEPTED'
 };
 
-const Broadcast = ({ user, onSocketConnected }) => {
+const Broadcast = ({ user, room, onSocketConnected }) => {
   const [users, setUsers] = useState([]);
   const [stream, setStream] = useState(null);
   const [userID, setUserID] = useState(null);
@@ -46,12 +47,6 @@ const Broadcast = ({ user, onSocketConnected }) => {
       return history.push('/');
     }
 
-    socket.current = io(process.env.REACT_APP_SOCKET_URL, {
-      query: {
-        name: user.name
-      }
-    });
-
     (async () => {
       const s = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -64,6 +59,15 @@ const Broadcast = ({ user, onSocketConnected }) => {
       }
     })();
 
+    socket.current = io(process.env.REACT_APP_SOCKET_URL, {
+      query: {
+        name: user.name,
+        room: room.name
+      }
+    });
+
+    socket.current.on('join-room', (res) => toast.info(res));
+
     socket.current.on('connected', ({ id, socketID: sid }) => {
       setUserID(id);
       setSocketID(sid);
@@ -71,6 +75,7 @@ const Broadcast = ({ user, onSocketConnected }) => {
     });
 
     socket.current.on('users', (res) => {
+      console.log(res);
       setUsers(res);
     });
 
@@ -325,8 +330,9 @@ Broadcast.propTypes = {
   onSocketConnected: PropTypes.func.isRequired
 };
 
-const mapStateToProps = ({ user }) => ({
-  user
+const mapStateToProps = ({ user, room }) => ({
+  user,
+  room
 });
 
 const mapDispatchToProps = (dispatch) => ({

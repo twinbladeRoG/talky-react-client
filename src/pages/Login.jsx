@@ -107,7 +107,8 @@ const Login = ({ onLogin, onCreateRoom }) => {
 };
 
 Login.propTypes = {
-  onLogin: PropTypes.func.isRequired
+  onLogin: PropTypes.func.isRequired,
+  onCreateRoom: PropTypes.func.isRequired
 };
 
 const mapDispatchToProps = (dispatch) => ({
