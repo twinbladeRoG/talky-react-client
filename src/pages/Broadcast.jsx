@@ -1,31 +1,33 @@
-import React, { useEffect, useState, useRef, useContext } from "react";
-import { Container, Row, Col, Button, Form } from "react-bootstrap";
-import classnames from "classnames";
-import Peer from "simple-peer";
-import io from "socket.io-client";
-import UserContext from "../contexts/UserContext";
-import { useHistory } from "react-router";
-import NavBar from "../components/Navbar";
-import UserCard from "../components/UserCard";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPhoneAlt, faPhoneSlash } from "@fortawesome/free-solid-svg-icons";
-import Draggable from "react-draggable";
+import PropTypes from 'prop-types';
+import React, { useEffect, useState, useRef } from 'react';
+import { Container, Row, Col, Button, Form } from 'react-bootstrap';
+import classnames from 'classnames';
+import Peer from 'simple-peer';
+import io from 'socket.io-client';
+import { useHistory } from 'react-router';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPhoneAlt, faPhoneSlash } from '@fortawesome/free-solid-svg-icons';
+import Draggable from 'react-draggable';
+import { connect } from 'react-redux';
+import { toast } from 'react-toastify';
+import UserCard from '../components/UserCard';
+import NavBar from '../components/Navbar';
+import { socketConnected } from '../redux/actions/userActions';
 
 const videoConstraints = {
   fullhd: { width: { exact: 1920 }, height: { exact: 1080 } },
   hd: { width: { exact: 1280 }, height: { exact: 720 } },
   vga: { width: { exact: 640 }, height: { exact: 480 } },
-  qvga: { width: { exact: 320 }, height: { exact: 240 } },
+  qvga: { width: { exact: 320 }, height: { exact: 240 } }
 };
 
 const CallStates = {
-  CALLING: "CALLING",
-  CALL_ACKNOWLEDGED: "CALL_ACKNOWLEDGED",
-  CALL_ACCEPTED: "CALL_ACCEPTED",
+  CALLING: 'CALLING',
+  CALL_ACKNOWLEDGED: 'CALL_ACKNOWLEDGED',
+  CALL_ACCEPTED: 'CALL_ACCEPTED'
 };
 
-const Broadcast = () => {
-  const user = useContext(UserContext);
+const Broadcast = ({ user, room, onSocketConnected }) => {
   const [users, setUsers] = useState([]);
   const [stream, setStream] = useState(null);
   const [userID, setUserID] = useState(null);
@@ -38,98 +40,105 @@ const Broadcast = () => {
   const player = useRef(null);
   const peerPlayer = useRef(null);
   const peerUser = useRef(null);
-  let socket = useRef(null);
+  const socket = useRef(null);
 
   useEffect(() => {
     if (!user.name.length) {
-      return history.push("/");
+      return history.push('/');
     }
+
+    (async () => {
+      const s = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: videoConstraints.hd
+      });
+
+      setStream(s);
+      if (player.current) {
+        player.current.srcObject = s;
+      }
+    })();
 
     socket.current = io(process.env.REACT_APP_SOCKET_URL, {
       query: {
         name: user.name,
-        type: user.type,
-      },
-    });
-
-    (async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: videoConstraints.hd,
-      });
-
-      setStream(stream);
-      if (player.current) {
-        player.current.srcObject = stream;
+        room: room.name
       }
-    })();
-
-    socket.current.on("connected", ({ id, socketID }) => {
-      setUserID(id);
-      setSocketID(socketID);
-      user.setUserID(id);
-      user.setSocketID(socketID);
     });
 
-    socket.current.on("users", (res) => {
+    socket.current.on('join-room', (res) => toast.info(res));
+
+    socket.current.on('connected', ({ id, socketID: sid }) => {
+      setUserID(id);
+      setSocketID(sid);
+      onSocketConnected(id, sid);
+    });
+
+    socket.current.on('users', (res) => {
+      console.log(res);
       setUsers(res);
     });
 
-    socket.current.on("get-signal", (res) => {
-      console.log("Received signal: ", res.from);
+    socket.current.on('get-signal', (res) => {
+      console.log('Received signal: ', res.from);
       setCallerSignal(res.signal);
       setCaller(res.from);
-      console.log("Call State on Get-Signal: ", callState);
+      console.log('Call State on Get-Signal: ', callState);
     });
 
     return () => socket.current.disconnect();
+
     // eslint-disable-next-line
   }, []);
 
-  useEffect(() => console.log(callState), [callState]);
+  const onEnd = () => {
+    stream.getTracks().forEach((track) => track.stop());
+    peerUser.current.destroy();
+    socket.current.disconnect();
+    history.push('/');
+  };
 
   const onCall = (callUser) => {
     const peer = new Peer({
       initiator: true,
       trickle: false,
-      stream: stream,
+      stream,
       config: {
         iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478?transport=udp" },
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478?transport=udp' },
           {
-            url: "turn:numb.viagenie.ca",
+            url: 'turn:numb.viagenie.ca',
             username: process.env.REACT_APP_TURN_SERVER_USERNAME,
-            credential: process.env.REACT_APP_TURN_SERVER_CREDENTIAL,
-          },
-        ],
-      },
+            credential: process.env.REACT_APP_TURN_SERVER_CREDENTIAL
+          }
+        ]
+      }
     });
 
     peerUser.current = peer;
     setCallState(CallStates.CALLING);
 
-    peer.on("signal", (data) => {
-      socket.current.emit("send-signal", {
+    peer.on('signal', (data) => {
+      socket.current.emit('send-signal', {
         signal: data,
         from: {
           id: userID,
           name: user.name,
-          type: user.type,
-          socketID: socketID,
+          socketID
         },
-        to: callUser,
+        to: callUser
       });
     });
 
-    peer.on("stream", (stream) => {
-      if (peerPlayer.current) peerPlayer.current.srcObject = stream;
+    peer.on('stream', (s) => {
+      if (peerPlayer.current) peerPlayer.current.srcObject = s;
     });
 
-    peer.on("close", () => onEnd());
+    peer.on('close', () => onEnd());
 
-    socket.current.on("call-acknowledged", (res) => {
-      console.log("Call Acknowledged from: ", res.from.name, res.from.socketID);
+    socket.current.on('call-acknowledged', (res) => {
+      console.log('Call Acknowledged from: ', res.from.name, res.from.socketID);
       setCallState(CallStates.CALL_ACKNOWLEDGED);
       peer.signal(res.signal);
     });
@@ -141,40 +150,39 @@ const Broadcast = () => {
       trickle: false,
       config: {
         iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478?transport=udp" },
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478?transport=udp' },
           {
-            url: "turn:numb.viagenie.ca",
+            url: 'turn:numb.viagenie.ca',
             username: process.env.REACT_APP_TURN_SERVER_USERNAME,
-            credential: process.env.REACT_APP_TURN_SERVER_CREDENTIAL,
-          },
-        ],
+            credential: process.env.REACT_APP_TURN_SERVER_CREDENTIAL
+          }
+        ]
       },
-      stream: stream,
+      stream
     });
 
     peerUser.current = peer;
     setCallState(CallStates.CALL_ACCEPTED);
 
-    peer.on("signal", (data) => {
-      console.log("Got PEER signal on Answer");
-      socket.current.emit("acknowledge-call", {
+    peer.on('signal', (data) => {
+      console.log('Got PEER signal on Answer');
+      socket.current.emit('acknowledge-call', {
         signal: data,
         from: {
           id: userID,
           name: user.name,
-          type: user.type,
-          socketID: socketID,
+          socketID
         },
-        to: callUser,
+        to: callUser
       });
     });
 
-    peer.on("stream", (stream) => {
-      peerPlayer.current.srcObject = stream;
+    peer.on('stream', (s) => {
+      peerPlayer.current.srcObject = s;
     });
 
-    peer.on("close", () => onEnd());
+    peer.on('close', () => onEnd());
 
     peer.signal(callerSignal);
   };
@@ -188,23 +196,15 @@ const Broadcast = () => {
   };
 
   const onVideoQualityChange = async (e) => {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const s = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: videoConstraints[e.target.value],
+      video: videoConstraints[e.target.value]
     });
 
-    setStream(stream);
+    setStream(s);
     if (player.current) {
       player.current.srcObject = stream;
     }
-  };
-
-  const onEnd = () => {
-    console.log("End Call");
-    stream.getTracks().forEach((track) => track.stop());
-    peerUser.current.destroy();
-    socket.current.disconnect();
-    history.push("/");
   };
 
   return (
@@ -230,37 +230,35 @@ const Broadcast = () => {
 
         <Row>
           <Col sm={12} md={6} lg={4}>
-            <UserCard name={user.name} type={user.type}></UserCard>
-            {users.map(({ id, name, type, socketID: sID }) => {
+            <UserCard name={user.name} />
+            {users.map(({ id, name, socketID: sID }) => {
               if (id === userID && sID === socketID) return null;
               return (
-                <UserCard key={id} name={name} type={type}>
+                <UserCard key={id} name={name}>
                   {!caller && (
                     <Button
                       size="sm"
                       disabled={callState !== null}
-                      variant={callState === null ? "primary" : "success"}
-                      onClick={() => onCall({ id, name, type, socketID: sID })}
+                      variant={callState === null ? 'primary' : 'success'}
+                      onClick={() => onCall({ id, name, socketID: sID })}
                     >
                       <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
-                      {callState === null && "Call"}
-                      {callState === CallStates.CALLING && "Calling"}
-                      {callState === CallStates.CALL_ACKNOWLEDGED && "ACCEPTED"}
+                      {callState === null && 'Call'}
+                      {callState === CallStates.CALLING && 'Calling'}
+                      {callState === CallStates.CALL_ACKNOWLEDGED && 'ACCEPTED'}
                     </Button>
                   )}
                   {caller && caller.id === id && (
                     <Button
                       size="sm"
                       disabled={callState === CallStates.CALL_ACCEPTED}
-                      variant={"success"}
-                      onClick={() =>
-                        onAccept({ id, name, type, socketID: sID })
-                      }
+                      variant="success"
+                      onClick={() => onAccept({ id, name, socketID: sID })}
                     >
                       <FontAwesomeIcon icon={faPhoneAlt} className="mr-2" />
                       {callState === CallStates.CALL_ACCEPTED
-                        ? "ACCEPTED"
-                        : "ANSWER"}
+                        ? 'ACCEPTED'
+                        : 'ANSWER'}
                     </Button>
                   )}
                 </UserCard>
@@ -276,8 +274,8 @@ const Broadcast = () => {
               <div
                 className={classnames(
                   callState === null || callState === CallStates.CALLING
-                    ? "video-self-idle"
-                    : "video-self"
+                    ? 'video-self-idle'
+                    : 'video-self'
                 )}
               >
                 <video
@@ -290,14 +288,14 @@ const Broadcast = () => {
               </div>
             </Draggable>
 
-            {(callState === CallStates.CALL_ACCEPTED ||
-              callState === CallStates.CALL_ACKNOWLEDGED) && (
+            {(callState === CallStates.CALL_ACCEPTED
+              || callState === CallStates.CALL_ACKNOWLEDGED) && (
               <Button
                 variant="danger"
-                className={classnames("rounded-circle btn-call-end shadow")}
+                className={classnames('rounded-circle btn-call-end shadow')}
                 onClick={onEnd}
               >
-                <FontAwesomeIcon icon={faPhoneSlash} color={"#fff"} />
+                <FontAwesomeIcon icon={faPhoneSlash} color="#fff" />
               </Button>
             )}
           </Col>
@@ -307,9 +305,9 @@ const Broadcast = () => {
         <div
           sm={12}
           className={classnames(
-            callState === CallStates.CALL_ACCEPTED ||
-              callState === CallStates.CALL_ACKNOWLEDGED
-              ? "video-peer"
+            callState === CallStates.CALL_ACCEPTED
+              || callState === CallStates.CALL_ACKNOWLEDGED
+              ? 'video-peer'
               : null
           )}
         >
@@ -325,4 +323,20 @@ const Broadcast = () => {
   );
 };
 
-export default Broadcast;
+Broadcast.propTypes = {
+  user: PropTypes.shape({
+    name: PropTypes.string
+  }).isRequired,
+  onSocketConnected: PropTypes.func.isRequired
+};
+
+const mapStateToProps = ({ user, room }) => ({
+  user,
+  room
+});
+
+const mapDispatchToProps = (dispatch) => ({
+  onSocketConnected: (id, socketId) => dispatch(socketConnected(id, socketId))
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(Broadcast);
