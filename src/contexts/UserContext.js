@@ -1,9 +1,9 @@
-import { createContext } from "react";
+import { createContext } from 'react';
 
 const UserContext = createContext({
-  name: "",
+  name: '',
   id: null,
-  type: "",
+  type: '',
   setUserName: null,
   setUserID: null,
   setUserType: null
