@@ -7,6 +7,11 @@ export const login = (name) => (dispatch) =>
     payload: name
   });
 
+export const logout = () => (dispatch) =>
+  dispatch({
+    type: USER.LOGOUT
+  });
+
 export const socketConnected = (id, socketId) => (dispatch) =>
   dispatch({
     type: USER.SOCKET_CONNECTED,

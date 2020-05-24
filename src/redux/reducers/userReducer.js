@@ -2,8 +2,8 @@ import { USER } from '../types';
 
 const initialState = {
   id: null,
-  name: '',
-  socketId: ''
+  name: null,
+  socketId: null
 };
 
 const userReducer = (state = initialState, { type, payload }) => {
