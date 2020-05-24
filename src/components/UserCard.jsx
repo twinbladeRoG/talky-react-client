@@ -1,9 +1,10 @@
 import PropTypes from 'prop-types';
 import React from 'react';
 import { Card, Media, Image } from 'react-bootstrap';
+import classnames from 'classnames';
 
-const UserCard = ({ name, children }) => (
-  <Card body className="mb-3">
+const UserCard = ({ name, children, className }) => (
+  <Card body className={classnames('mb-3', className)}>
     <Media className="align-items-center">
       <Image
         roundedCircle
@@ -22,12 +23,15 @@ const UserCard = ({ name, children }) => (
 );
 
 UserCard.defaultProps = {
-  children: null
+  children: null,
+  name: null,
+  className: null
 };
 
 UserCard.propTypes = {
   children: PropTypes.node,
-  name: PropTypes.string.isRequired
+  name: PropTypes.string,
+  className: PropTypes.string
 };
 
 UserCard.defaultProps = {};
