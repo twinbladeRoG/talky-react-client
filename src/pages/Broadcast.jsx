@@ -1,12 +1,12 @@
 import PropTypes from 'prop-types';
 import React, { useEffect, useState, useRef } from 'react';
-import { Container, Row, Col, Form } from 'react-bootstrap';
-// import classnames from 'classnames';
+import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+import classnames from 'classnames';
 import Peer from 'simple-peer';
 import io from 'socket.io-client';
 import { useHistory } from 'react-router';
-// import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-// import { faPhoneSlash } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPhoneSlash } from '@fortawesome/free-solid-svg-icons';
 import { connect } from 'react-redux';
 import { toast } from 'react-toastify';
 import UserCard from '../components/UserCard';
@@ -77,12 +77,16 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
     socket.current.on('users', (res) => setUsers(res));
 
     return () => {
-      socket.current.disconnect();
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      if (peer) {
+        peer.destroy();
+      }
+      if (socket.current) {
+        socket.current.disconnect();
+      }
       logOut();
-      stream.getTracks().forEach((track) => track.stop());
-      peer.destroy();
-      socket.current.disconnect();
-      history.push('/');
     };
     // eslint-disable-next-line
   }, []);
@@ -181,6 +185,10 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
     }
   };
 
+  const onCallDisconnect = () => {
+    history.push('/');
+  };
+
   return (
     <>
       <NavBar />
@@ -212,7 +220,7 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
           </Col>
 
           <Col sm={12} md={6} lg={8}>
-            <div className="video-self-idle">
+            <div className={classnames(users.length > 1 ? 'video-self':'video-self-idle')}>
               <video
                 ref={player}
                 autoPlay
@@ -223,7 +231,7 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
             </div>
 
             {/* PEER Video */}
-            <div className="video-self-idle mt-3">
+            <div className={classnames('mt-3', users.length > 1 ? 'video-peer' : 'video-self-idle')}>
               <video
                 ref={peerPlayer}
                 autoPlay
@@ -232,7 +240,16 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
               />
             </div>
           </Col>
+
         </Row>
+
+        {
+          users.length > 1 && (
+            <Button variant="danger" className="btn-call-end" onClick={onCallDisconnect}>
+              <FontAwesomeIcon icon={faPhoneSlash} />
+            </Button>
+          )
+        }
       </Container>
     </>
   );
