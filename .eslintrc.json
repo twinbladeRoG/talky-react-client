@@ -18,8 +18,8 @@
   "plugins": ["react", "react-hooks"],
   "rules": {
     "indent": ["error", 2, { "SwitchCase": 1 }],
-    "max-len": ["error", { "code": 80 }],
-    "linebreak-style": ["error", "windows"],
+    "max-len": ["error", { "code": 100 }],
+    "linebreak-style": ["error", "unix"],
     "comma-dangle": ["error", "never"],
     "quotes": ["error", "single"],
     "semi": ["error", "always"],

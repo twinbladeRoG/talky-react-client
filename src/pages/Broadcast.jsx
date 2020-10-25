@@ -95,6 +95,7 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
     if (stream && player.current) {
       player.current.srcObject = stream;
     }
+    // eslint-disable-next-line
   }, [stream, player]);
 
   useEffect(() => {
@@ -111,6 +112,7 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
         })
       );
     }
+    // eslint-disable-next-line
   }, [users, stream]);
 
   useEffect(() => {
@@ -149,6 +151,7 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
         if (peerPlayer.current) peerPlayer.current.srcObject = s;
       });
     }
+    // eslint-disable-next-line
   }, [peer]);
 
   useEffect(() => {
@@ -171,6 +174,7 @@ const Broadcast = ({ user, room, onSocketConnected, logOut }) => {
         });
       }
     }
+    // eslint-disable-next-line
   }, [peer, users]);
 
   const onVideoQualityChange = async (e) => {
